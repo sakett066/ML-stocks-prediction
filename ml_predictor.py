@@ -1,6 +1,7 @@
 """
-ML PREDICTION ENGINE v1.1 - No Yahoo Finance
-Uses NSE data + Statistical models for prediction
+ML PREDICTION ENGINE v2.0 - ULTIMATE VERSION
+Multi-layer: Statistical + Pattern + Momentum + Value + Risk
+Best possible prediction without Yahoo Finance
 """
 import os
 import time
@@ -14,194 +15,255 @@ os.environ['TZ'] = 'Asia/Kolkata'
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_ML_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_ML_CHAT_ID')
 
+# Extended universe with growth stocks
 STOCKS = {
-    'IT': ['TCS', 'INFY', 'WIPRO', 'HCLTECH', 'TECHM'],
-    'Banking': ['HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'SBIN', 'AXISBANK'],
-    'Pharma': ['SUNPHARMA', 'DRREDDY', 'CIPLA', 'DIVISLAB'],
-    'Consumer': ['ITC', 'HINDUNILVR', 'TITAN', 'DMART', 'TRENT'],
-    'Auto': ['MARUTI', 'TATAMOTORS', 'M&M', 'BAJAJ-AUTO'],
-    'Finance': ['BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN'],
-    'Energy': ['RELIANCE', 'POWERGRID', 'NTPC', 'ONGC', 'TATAPOWER'],
-    'Metal': ['TATASTEEL', 'JSWSTEEL', 'JINDALSTEL'],
-    'Others': ['LT', 'HAL', 'BEL', 'IRCTC', 'ZOMATO', 'ADANIPORTS']
+    '🖥️ IT': ['TCS', 'INFY', 'WIPRO', 'HCLTECH', 'TECHM', 'PERSISTENT', 'LTI'],
+    '🏦 Banking': ['HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'SBIN', 'AXISBANK', 'BANDHANBNK', 'FEDERALBNK'],
+    '💊 Pharma': ['SUNPHARMA', 'DRREDDY', 'CIPLA', 'DIVISLAB', 'LAURUSLABS', 'ALKEM', 'BIOCON'],
+    '🛒 Consumer': ['ITC', 'HINDUNILVR', 'TITAN', 'DMART', 'TRENT', 'TATACONSUM', 'DABUR'],
+    '🚗 Auto': ['MARUTI', 'TATAMOTORS', 'M&M', 'BAJAJ-AUTO', 'EICHERMOT', 'TVSMOTOR'],
+    '💰 Finance': ['BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN', 'MUTHOOTFIN', 'PFC', 'RECLTD'],
+    '⚡ Energy': ['RELIANCE', 'POWERGRID', 'NTPC', 'ONGC', 'TATAPOWER', 'ADANIPORTS', 'ADANIGREEN'],
+    '🏗️ Infra': ['LT', 'HAL', 'BEL', 'IRCON', 'RVNL', 'IRCTC'],
+    '🏭 Metals': ['TATASTEEL', 'JSWSTEEL', 'HINDZINC', 'JINDALSTEL', 'VEDL'],
+    '📱 Others': ['ZOMATO', 'PIDILITIND', 'BERGEPAINT', 'ASIANPAINT', 'INDIGO']
 }
 
 # ============================================
-# STATISTICAL BACKTESTING (No Yahoo needed)
+# LAYER 1: VALUE DETECTION
 # ============================================
-def calculate_statistical_score(price, high_52, low_52, change_pct, delivery_pct):
-    """Score based on statistical patterns without historical data"""
-    score = 0
-    
-    # 52-Week position scoring
-    if high_52 > 0 and low_52 > 0:
-        range_52 = high_52 - low_52
-        position_52 = ((price - low_52) / range_52 * 100) if range_52 > 0 else 50
-        
-        # Best buying zone: 20-50% of 52-week range
-        if 20 <= position_52 <= 50:
-            score += 15
-        elif 50 < position_52 <= 70:
-            score += 10
-        elif position_52 < 20:
-            score += 8  # Near bottom
-    
-    # Distance from high (value play)
-    if high_52 > 0:
-        dist_high = ((high_52 - price) / high_52) * 100
-        if dist_high > 30:
-            score += 12
-        elif dist_high > 20:
-            score += 10
-        elif dist_high > 10:
-            score += 6
-    
-    # Delivery based
-    if delivery_pct > 65:
-        score += 10
-    elif delivery_pct > 50:
-        score += 7
-    elif delivery_pct > 35:
-        score += 4
-    
-    # Momentum
-    if 0.3 < change_pct < 2:
-        score += 8
-    elif 0 < change_pct <= 0.3:
-        score += 5
-    
-    return min(25, score)
-
-# ============================================
-# FUNDAMENTAL ESTIMATION (From NSE data)
-# ============================================
-def estimate_fundamentals(price, high_52, low_52, volume, delivery_pct, sector):
-    """Estimate fundamental quality from available data"""
-    factors = []
-    warnings = []
-    fund_score = 0
-    
-    # Price position = valuation proxy
-    if high_52 > 0 and low_52 > 0:
-        mid_52 = (high_52 + low_52) / 2
-        
-        if price < mid_52:
-            fund_score += 10
-            factors.append("Trading below 52W midpoint (Value zone)")
-        elif price < high_52 * 0.8:
-            fund_score += 6
-            factors.append("Room to reach 52W high")
-        elif price > high_52 * 0.95:
-            fund_score += 2
-            warnings.append("Near 52W high - limited upside")
-    
-    # Volume = liquidity proxy
-    if volume > 1000000:
-        fund_score += 8
-        factors.append("High liquidity (>1M shares)")
-    elif volume > 500000:
-        fund_score += 5
-        factors.append("Good liquidity")
-    else:
-        warnings.append("Low liquidity")
-    
-    # Delivery = conviction proxy
-    if delivery_pct > 60:
-        fund_score += 8
-        factors.append("Strong delivery (Investor conviction)")
-    elif delivery_pct > 45:
-        fund_score += 5
-    elif delivery_pct < 30:
-        warnings.append("Weak delivery")
-    
-    # Sector premium
-    premium_sectors = ['IT', 'Pharma', 'Consumer']
-    if sector in premium_sectors:
-        fund_score += 4
-        factors.append(f"Premium sector: {sector}")
-    
-    return {
-        'score': min(20, fund_score),
-        'factors': factors[:4],
-        'warnings': warnings[:3]
-    }
-
-# ============================================
-# SMART ENTRY DETECTOR
-# ============================================
-def detect_smart_entry(price, high_52, low_52, vwap, change_pct):
-    """Detect optimal entry point"""
+def calculate_value_score(price, high_52, low_52):
+    """Detect if stock is at good value"""
     score = 0
     signals = []
     
-    # RSI estimation
-    if high_52 > 0 and low_52 > 0:
-        range_52 = high_52 - low_52
-        pos_52 = ((price - low_52) / range_52 * 100) if range_52 > 0 else 50
-        # Convert to approximate RSI
-        estimated_rsi = 30 + (pos_52 * 0.4)
-        
-        if 35 <= estimated_rsi <= 50:
-            score += 12
-            signals.append(f"Buy zone (RSI ~{estimated_rsi:.0f})")
-        elif 50 < estimated_rsi <= 65:
-            score += 8
-            signals.append(f"Moderate RSI ~{estimated_rsi:.0f}")
-        elif estimated_rsi > 75:
-            signals.append("Overbought zone - wait")
-            score -= 5
+    if high_52 == 0 or low_52 == 0:
+        return {'score': 10, 'signals': ['Limited data']}
     
-    # VWAP position
-    if vwap > 0:
-        vs_vwap = ((price - vwap) / vwap) * 100
-        if -2 < vs_vwap < 0:
-            score += 10
-            signals.append("Slightly below VWAP - good entry")
-        elif 0 <= vs_vwap < 2:
-            score += 7
-            signals.append("At/Above VWAP - momentum")
-        elif vs_vwap < -3:
-            score += 5
-            signals.append("Below VWAP - discount")
+    range_52 = high_52 - low_52
+    position = ((price - low_52) / range_52 * 100) if range_52 > 0 else 50
+    dist_from_high = ((high_52 - price) / high_52 * 100)
+    dist_from_low = ((price - low_52) / low_52 * 100)
     
-    # Pullback check
-    if -1 < change_pct < 0:
-        score += 8
-        signals.append("Mild pullback - entry opportunity")
-    elif -3 < change_pct <= -1:
-        score += 5
-        signals.append("Dip - potential reversal")
+    # Value zones
+    if position < 30:
+        score += 20
+        signals.append(f"Deep value: {position:.0f}% of 52W range")
+    elif position < 50:
+        score += 15
+        signals.append(f"Good value: {position:.0f}% of 52W range")
+    elif position < 70:
+        score += 10
+        signals.append(f"Moderate: {position:.0f}% of 52W range")
+    else:
+        score += 3
+        signals.append("Near high - limited value")
     
-    quality = "EXCELLENT" if score >= 30 else "GOOD" if score >= 20 else "FAIR" if score >= 10 else "POOR"
+    # Distance from high
+    if dist_from_high > 40:
+        score += 15
+        signals.append(f"Recovery potential: {dist_from_high:.0f}% below high")
+    elif dist_from_high > 25:
+        score += 10
+        signals.append(f"Upside room: {dist_from_high:.0f}% below high")
     
-    return {'score': min(25, max(0, score)), 'quality': quality, 'signals': signals[:4]}
+    # Distance from low (safety margin)
+    if dist_from_low < 15:
+        score += 12
+        signals.append(f"Strong support nearby: {dist_from_low:.0f}% above low")
+    
+    return {'score': min(30, score), 'signals': signals[:4], 'position': position}
 
 # ============================================
-# ML-STYLE PREDICTOR (Statistical)
+# LAYER 2: MOMENTUM & TREND
 # ============================================
-def predict_profit_probability(tech_score, fund_score, entry_score, delivery_pct, change_pct):
-    """Statistical profit probability calculator"""
-    # Weighted probability model
-    base_prob = 55  # Base probability
+def calculate_momentum_score(price, open_p, high, low, prev_close, change_pct, vwap):
+    """Multi-factor momentum detection"""
+    score = 0
+    signals = []
     
-    # Technical contribution
-    tech_bonus = (tech_score / 25) * 15
+    day_range = high - low
+    position = ((price - low) / day_range * 100) if day_range > 0 else 50
     
-    # Fundamental contribution
-    fund_bonus = (fund_score / 20) * 10
+    # Intraday strength
+    if position > 65:
+        score += 8
+        signals.append("Closing near high - strength")
+    elif position > 50:
+        score += 5
+    elif position < 35:
+        score += 3
+        signals.append("Near day low - potential reversal")
     
-    # Entry quality contribution
-    entry_bonus = (entry_score / 25) * 10
+    # Price change quality
+    if 0.3 < change_pct < 2:
+        score += 10
+        signals.append(f"Healthy rise: +{change_pct:.1f}%")
+    elif 0 < change_pct <= 0.3:
+        score += 6
+        signals.append("Mild positive")
+    elif -1 < change_pct < 0:
+        score += 7
+        signals.append(f"Dip: {change_pct:.1f}% - buy opportunity")
+    elif -3 < change_pct <= -1:
+        score += 4
+        signals.append("Pullback - watch for reversal")
+    
+    # VWAP relationship
+    if vwap > 0:
+        vs_vwap = ((price - vwap) / vwap) * 100
+        if 0 < vs_vwap < 1.5:
+            score += 8
+            signals.append("Above VWAP - bullish")
+        elif -1 < vs_vwap <= 0:
+            score += 6
+            signals.append("Near VWAP - fair value")
+        elif vs_vwap < -2:
+            score += 4
+            signals.append("Below VWAP - oversold")
+    
+    # Gap analysis
+    if prev_close > 0:
+        gap = ((open_p - prev_close) / prev_close) * 100
+        if 0 < gap < 1:
+            score += 5
+            signals.append("Gap up with room")
+        elif gap > 2:
+            score += 2
+            signals.append("Large gap - wait for fill")
+    
+    return {'score': min(20, score), 'signals': signals[:4]}
+
+# ============================================
+# LAYER 3: SMART MONEY
+# ============================================
+def calculate_smart_money_score(delivery_pct, buy_qty, sell_qty, volume):
+    """Detect institutional activity"""
+    score = 0
+    signals = []
+    
+    # Delivery analysis
+    if delivery_pct > 65:
+        score += 12
+        signals.append(f"Strong delivery: {delivery_pct:.0f}% - accumulation")
+    elif delivery_pct > 50:
+        score += 8
+        signals.append(f"Good delivery: {delivery_pct:.0f}%")
+    elif delivery_pct > 35:
+        score += 4
+    else:
+        signals.append(f"Low delivery: {delivery_pct:.0f}% - speculative")
+    
+    # Buy/Sell ratio
+    if buy_qty > 0 and sell_qty > 0:
+        ratio = buy_qty / sell_qty
+        if ratio > 1.5:
+            score += 8
+            signals.append(f"Buying pressure: {ratio:.1f}x")
+        elif ratio > 1.1:
+            score += 5
+        elif ratio < 0.7:
+            score += 2
+            signals.append("Selling pressure")
+    
+    # Volume significance
+    if volume > 2000000:
+        score += 5
+        signals.append("High volume activity")
+    elif volume > 500000:
+        score += 3
+    
+    return {'score': min(20, score), 'signals': signals[:3]}
+
+# ============================================
+# LAYER 4: RISK ASSESSMENT
+# ============================================
+def calculate_risk_score(price, high_52, low_52, change_pct, delivery_pct):
+    """Assess downside risk"""
+    score = 0
+    warnings = []
+    
+    # Volatility risk
+    if high_52 > 0 and low_52 > 0:
+        volatility = ((high_52 - low_52) / low_52) * 100
+        if volatility < 30:
+            score += 8
+        elif volatility < 50:
+            score += 5
+        else:
+            warnings.append(f"High volatility: {volatility:.0f}%")
+    
+    # Gap risk
+    if abs(change_pct) > 5:
+        warnings.append(f"Extreme move: {change_pct:+.1f}%")
+        score -= 3
+    
+    # Delivery risk
+    if delivery_pct < 25:
+        warnings.append("Very low delivery - high risk")
+        score -= 5
+    
+    # Near circuit
+    if change_pct > 8:
+        warnings.append("Near upper circuit - reversal risk")
+        score -= 4
+    elif change_pct < -8:
+        warnings.append("Near lower circuit - falling knife")
+        score -= 4
+    
+    return {'score': max(0, min(15, score + 5)), 'warnings': warnings[:3]}
+
+# ============================================
+# LAYER 5: SECTOR STRENGTH
+# ============================================
+def calculate_sector_score(sector):
+    """Score based on sector category"""
+    sector_scores = {
+        '🖥️ IT': 8,
+        '🏦 Banking': 7,
+        '💊 Pharma': 8,
+        '🛒 Consumer': 7,
+        '🚗 Auto': 6,
+        '💰 Finance': 7,
+        '⚡ Energy': 6,
+        '🏗️ Infra': 7,
+        '🏭 Metals': 5,
+        '📱 Others': 5
+    }
+    return sector_scores.get(sector, 5)
+
+# ============================================
+# PREDICTION ENGINE
+# ============================================
+def calculate_win_probability(value, momentum, smart_money, risk, sector, delivery_pct, change_pct):
+    """Calculate probability of profitable trade"""
+    # Base probability
+    prob = 50
+    
+    # Value contribution
+    prob += (value['score'] / 30) * 12
+    
+    # Momentum contribution
+    prob += (momentum['score'] / 20) * 10
+    
+    # Smart money contribution
+    prob += (smart_money['score'] / 20) * 8
+    
+    # Risk reduction
+    prob -= (15 - risk['score']) * 0.5
+    
+    # Sector bonus
+    prob += sector * 0.5
     
     # Delivery conviction
-    delivery_bonus = 5 if delivery_pct > 60 else 3 if delivery_pct > 40 else 0
+    if delivery_pct > 60: prob += 5
+    elif delivery_pct < 30: prob -= 3
     
     # Momentum alignment
-    momentum_bonus = 5 if 0 < change_pct < 2 else 2 if -1 < change_pct <= 0 else 0
+    if 0.3 < change_pct < 2: prob += 3
+    elif -1 < change_pct < 0: prob += 2
     
-    probability = base_prob + tech_bonus + fund_bonus + entry_bonus + delivery_bonus + momentum_bonus
-    
-    return min(92, max(35, round(probability, 1)))
+    return min(92, max(25, round(prob, 1)))
 
 # ============================================
 # TELEGRAM
@@ -222,7 +284,7 @@ def run_ml_analysis():
     results = []
     now = datetime.now()
     
-    print(f"🤖 ML PREDICTOR - {now.strftime('%d-%b %I:%M %p')}")
+    print(f"🤖 ULTIMATE ML PREDICTOR - {now.strftime('%d-%b %I:%M %p')}")
     
     all_symbols = [(sym, sec) for sec, syms in STOCKS.items() for sym in syms]
     
@@ -239,71 +301,67 @@ def run_ml_analysis():
             
             high = float(intraday.get('max', 0))
             low = float(intraday.get('min', 0))
+            open_p = float(q.get('open', 0))
             change_pct = float(q.get('pChange', 0))
+            prev_close = float(q.get('previousClose', 0))
             vwap = float(q.get('vwap', 0)) if q.get('vwap') else 0
             high_52 = float(weekly.get('max', 0))
             low_52 = float(weekly.get('min', 0))
             
-            # Volume & Delivery
+            # Volume data
             try:
                 vol = float(q.get('totalTradedVolume', 0))
                 dq = float(q.get('deliveryQuantity', 0))
                 delivery_pct = (dq/vol*100) if vol > 0 else 40
+                buy_qty = float(q.get('totalBuyQuantity', 0))
+                sell_qty = float(q.get('totalSellQuantity', 0))
             except:
-                vol = 0
-                delivery_pct = 40
+                vol = 0; delivery_pct = 40; buy_qty = 0; sell_qty = 0
             
-            # 1. Statistical Backtesting Score
-            stat_score = calculate_statistical_score(price, high_52, low_52, change_pct, delivery_pct)
+            # ALL 5 LAYERS
+            value = calculate_value_score(price, high_52, low_52)
+            momentum = calculate_momentum_score(price, open_p, high, low, prev_close, change_pct, vwap)
+            smart_money = calculate_smart_money_score(delivery_pct, buy_qty, sell_qty, vol)
+            risk = calculate_risk_score(price, high_52, low_52, change_pct, delivery_pct)
+            sector_score = calculate_sector_score(sector)
             
-            # 2. Fundamental Estimation
-            fundamentals = estimate_fundamentals(price, high_52, low_52, vol, delivery_pct, sector)
+            # Win Probability
+            probability = calculate_win_probability(value, momentum, smart_money, risk, sector_score, delivery_pct, change_pct)
             
-            # 3. Smart Entry Detection
-            entry = detect_smart_entry(price, high_52, low_52, vwap, change_pct)
+            # Total Score
+            total_score = round(
+                value['score'] * 0.25 +
+                momentum['score'] * 0.20 +
+                smart_money['score'] * 0.15 +
+                risk['score'] * 0.10 +
+                sector_score * 0.05 +
+                (probability / 100) * 25
+            , 1)
             
-            # 4. Technical Score
-            tech_score = 0
-            day_range = high - low
-            pos = ((price - low) / day_range * 100) if day_range > 0 else 50
-            if 40 < pos < 70: tech_score += 8
-            
-            if high_52 > 0:
-                dist_high = ((high_52 - price) / high_52) * 100
-                if dist_high > 20: tech_score += 10
-            if low_52 > 0:
-                dist_low = ((price - low_52) / low_52) * 100
-                if dist_low < 15: tech_score += 6
-            
-            if 0 < change_pct < 2: tech_score += 6
-            if price > vwap: tech_score += 4
-            
-            # ===== ML PROBABILITY =====
-            probability = predict_profit_probability(stat_score, fundamentals['score'], entry['score'], delivery_pct, change_pct)
-            
-            # ===== TOTAL SCORE =====
-            total_score = round((
-                stat_score * 0.25 +
-                fundamentals['score'] * 0.20 +
-                entry['score'] * 0.20 +
-                tech_score * 0.15 +
-                (probability / 100 * 20)  # ML probability contribution
-            ) + 5, 1)
-            
-            total_score = min(95, total_score)
+            total_score = min(95, max(10, total_score))
             
             # Target & Stop
-            target = round(price * (1 + total_score/100), 0)
+            target_mult = 1.8 if total_score >= 75 else 1.5 if total_score >= 60 else 1.3
+            target = round(price * target_mult, 0)
             stop_loss = round(price * 0.95, 0)
             
+            # Rating
             if total_score >= 75:
-                prediction, stars = "🔥 HIGH PROFIT", "⭐⭐⭐⭐⭐"
+                prediction = "🔥 HIGH CONVICTION"
+                stars = "⭐⭐⭐⭐⭐"
+                position = "15-20%"
             elif total_score >= 60:
-                prediction, stars = "🟢 GOOD SETUP", "⭐⭐⭐⭐"
+                prediction = "🟢 STRONG BUY"
+                stars = "⭐⭐⭐⭐"
+                position = "10-15%"
             elif total_score >= 45:
-                prediction, stars = "🔵 DECENT", "⭐⭐⭐"
+                prediction = "🔵 MODERATE BUY"
+                stars = "⭐⭐⭐"
+                position = "5-10%"
             else:
-                prediction, stars = "🟡 AVERAGE", "⭐⭐"
+                prediction = "🟡 WATCH"
+                stars = "⭐⭐"
+                position = "0-5%"
             
             results.append({
                 'symbol': symbol, 'sector': sector, 'price': price,
@@ -311,24 +369,25 @@ def run_ml_analysis():
                 'prediction': prediction,
                 'probability': probability,
                 'target': target, 'stop_loss': stop_loss,
+                'position': position,
                 'change': change_pct,
-                'fund_factors': fundamentals['factors'],
-                'fund_warnings': fundamentals['warnings'],
-                'entry_quality': entry['quality'],
-                'entry_signals': entry['signals'],
+                'value_signals': value['signals'][:2],
+                'momentum_signals': momentum['signals'][:2],
+                'smart_signals': smart_money['signals'][:2],
+                'risk_warnings': risk['warnings'][:2],
                 'delivery': delivery_pct,
-                'value_zone': 'Yes' if (high_52 > 0 and price < (high_52 + low_52)/2) else 'No'
+                'value_zone': f"{value['position']:.0f}% of 52W"
             })
             
             print(f"  {symbol:15} Score: {total_score:.1f} | Prob: {probability:.0f}% | {prediction}")
-            time.sleep(0.1)
+            time.sleep(0.08)
             
         except:
             pass
     
     return results, now
 
-def build_ml_message(results, now):
+def build_message(results, now):
     if not results: return None
     
     results.sort(key=lambda x: x['score'], reverse=True)
@@ -336,54 +395,56 @@ def build_ml_message(results, now):
     top = [r for r in results if r['score'] >= 75]
     good = [r for r in results if 60 <= r['score'] < 75]
     
-    msg = f"🤖 <b>ML PREDICTION ENGINE</b>\n"
+    msg = f"🤖 <b>ML PREDICTION ENGINE v2.0</b>\n"
     msg += f"{now.strftime('%d-%b %I:%M %p')} IST\n"
     msg += f"{'═'*35}\n\n"
     
-    msg += f"📊 <b>Analysis:</b> Statistical + Fundamental + Entry Timing\n"
-    msg += f"├ High Profit: {len(top)} | Good: {len(good)} | Total: {len(results)}\n\n"
+    msg += f"📊 <b>5-Layer Analysis:</b>\n"
+    msg += f"├ Value | Momentum | Smart Money\n"
+    msg += f"├ Risk Assessment | Sector Strength\n"
+    msg += f"├ Win Probability: Statistical Model\n"
+    msg += f"├ High Conviction: {len(top)} stocks\n"
+    msg += f"└ Strong Buy: {len(good)} stocks\n\n"
     
     if top:
-        msg += f"🔥 <b>TOP PICKS</b>\n{'═'*35}\n\n"
+        msg += f"🔥 <b>HIGH CONVICTION PICKS</b>\n{'═'*35}\n\n"
         
-        for i, r in enumerate(top[:4], 1):
+        for i, r in enumerate(top[:5], 1):
             gain = ((r['target'] - r['price']) / r['price']) * 100
             
             msg += f"<b>#{i} {r['symbol']}</b> | {r['sector']} | Rs.{r['price']:.0f}\n"
             msg += f"{'─'*35}\n"
-            msg += f"🤖 Score: {r['score']}/100 {r['stars']}\n"
-            msg += f"📈 Profit Probability: <b>{r['probability']:.0f}%</b>\n"
-            msg += f"🎯 Prediction: {r['prediction']}\n\n"
+            msg += f"🤖 Score: <b>{r['score']}/100</b> {r['stars']}\n"
+            msg += f"📈 Win Probability: <b>{r['probability']:.0f}%</b>\n"
+            msg += f"🎯 {r['prediction']}\n\n"
             
-            msg += f"💰 <b>Fundamentals:</b>\n"
-            for f in r['fund_factors'][:3]:
-                msg += f"   ✅ {f}\n"
+            msg += f"📊 <b>Layer Analysis:</b>\n"
+            msg += f"   💎 Value: {', '.join(r['value_signals'])}\n"
+            msg += f"   ⚡ Momentum: {', '.join(r['momentum_signals'])}\n"
+            msg += f"   💰 Smart Money: {', '.join(r['smart_signals'])}\n"
+            msg += f"   📍 Zone: {r['value_zone']}\n"
             
-            msg += f"\n🎯 <b>Entry:</b> {r['entry_quality']}\n"
-            for s in r['entry_signals'][:2]:
-                msg += f"   ✅ {s}\n"
+            if r['risk_warnings']:
+                msg += f"   ⚠️ Risk: {', '.join(r['risk_warnings'])}\n"
             
-            msg += f"\n💵 <b>Trade:</b>\n"
+            msg += f"\n💵 <b>Trade Plan:</b>\n"
             msg += f"   Target: Rs.{r['target']:.0f} (+{gain:.0f}%)\n"
             msg += f"   Stop: Rs.{r['stop_loss']:.0f} (-5%)\n"
-            msg += f"   Delivery: {r['delivery']:.0f}%\n"
-            
-            if r['fund_warnings']:
-                msg += f"\n⚠️ {', '.join(r['fund_warnings'][:2])}\n"
-            msg += f"\n"
+            msg += f"   Position: {r['position']}\n"
+            msg += f"   Delivery: {r['delivery']:.0f}%\n\n"
     
     msg += f"{'═'*35}\n"
-    msg += f"🤖 <i>ML Statistical Model | No Yahoo Needed</i>"
+    msg += f"🤖 <i>ML Engine v2.0 | 5-Layer Analysis</i>"
     
     return msg
 
 if __name__ == "__main__":
     results, now = run_ml_analysis()
     if results:
-        msg = build_ml_message(results, now)
+        msg = build_message(results, now)
         if msg and send_ml_alert(msg):
             print(f"✅ Sent! {len(results)} stocks analyzed")
         else:
-            print("❌ Failed to send")
+            print("❌ Failed")
     else:
         print("No data")
