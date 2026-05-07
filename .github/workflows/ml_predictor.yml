@@ -1,0 +1,28 @@
+name: ML Prediction Engine
+
+on:
+  schedule:
+    - cron: '45 1 * * 0-4'
+    - cron: '15 4 * * 0-4'
+    - cron: '15 6 * * 0-4'
+    - cron: '30 7 * * 0-4'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install packages
+        run: |
+          pip install nsetools requests numpy yfinance
+          pip install scikit-learn
+      - name: Run ML Analysis
+        env:
+          TELEGRAM_ML_BOT_TOKEN: ${{ secrets.TELEGRAM_ML_BOT_TOKEN }}
+          TELEGRAM_ML_CHAT_ID: ${{ secrets.TELEGRAM_ML_CHAT_ID }}
+          TZ: Asia/Kolkata
+        run: python ml_predictor.py
