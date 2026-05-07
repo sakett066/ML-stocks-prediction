@@ -1,7 +1,6 @@
 """
-ML PREDICTION ENGINE v2.1 - Recalibrated
+ML PREDICTION ENGINE v2.2 - Complete with SL, T1, T2, Holding Period
 Multi-layer: Value + Momentum + Smart Money + Risk + Sector
-Recalibrated scoring for better stock identification
 """
 import os
 import time
@@ -29,130 +28,71 @@ STOCKS = {
 }
 
 def calculate_value_score(price, high_52, low_52):
-    score = 0
-    signals = []
-    
+    score = 0; signals = []
     if high_52 == 0 or low_52 == 0:
         return {'score': 10, 'signals': ['Limited data'], 'position': 50}
-    
     range_52 = high_52 - low_52
     position = ((price - low_52) / range_52 * 100) if range_52 > 0 else 50
     dist_from_high = ((high_52 - price) / high_52 * 100)
     dist_from_low = ((price - low_52) / low_52 * 100)
-    
-    if position < 30:
-        score += 20; signals.append(f"Deep value: {position:.0f}% of 52W range")
-    elif position < 50:
-        score += 15; signals.append(f"Good value: {position:.0f}% of 52W range")
-    elif position < 70:
-        score += 10; signals.append(f"Moderate: {position:.0f}% of 52W range")
-    else:
-        score += 3; signals.append("Near high")
-    
-    if dist_from_high > 40:
-        score += 15; signals.append(f"Recovery: {dist_from_high:.0f}% below high")
-    elif dist_from_high > 25:
-        score += 10; signals.append(f"Upside: {dist_from_high:.0f}% below high")
-    
-    if dist_from_low < 15:
-        score += 12; signals.append(f"Support nearby: +{dist_from_low:.0f}% above low")
-    
+    if position < 30: score += 20; signals.append(f"Deep value: {position:.0f}% of 52W")
+    elif position < 50: score += 15; signals.append(f"Good value: {position:.0f}% of 52W")
+    elif position < 70: score += 10; signals.append(f"Moderate: {position:.0f}% of 52W")
+    else: score += 3; signals.append("Near high")
+    if dist_from_high > 40: score += 15; signals.append(f"Recovery: {dist_from_high:.0f}% below high")
+    elif dist_from_high > 25: score += 10; signals.append(f"Upside: {dist_from_high:.0f}% below high")
+    if dist_from_low < 15: score += 12; signals.append(f"Support: +{dist_from_low:.0f}% above low")
     return {'score': min(30, score), 'signals': signals[:4], 'position': position}
 
 def calculate_momentum_score(price, open_p, high, low, prev_close, change_pct, vwap):
-    score = 0
-    signals = []
-    
+    score = 0; signals = []
     day_range = high - low
     position = ((price - low) / day_range * 100) if day_range > 0 else 50
-    
-    if position > 65:
-        score += 8; signals.append("Closing near high")
-    elif position > 50:
-        score += 5
-    elif position < 35:
-        score += 3; signals.append("Near day low - reversal possible")
-    
-    if 0.3 < change_pct < 2:
-        score += 10; signals.append(f"Healthy rise: +{change_pct:.1f}%")
-    elif 0 < change_pct <= 0.3:
-        score += 6; signals.append("Mild positive")
-    elif -1 < change_pct < 0:
-        score += 7; signals.append(f"Dip: {change_pct:.1f}% - opportunity")
-    elif -3 < change_pct <= -1:
-        score += 4; signals.append("Pullback - watch reversal")
-    
+    if position > 65: score += 8; signals.append("Closing near high")
+    elif position > 50: score += 5
+    elif position < 35: score += 3; signals.append("Near day low - reversal")
+    if 0.3 < change_pct < 2: score += 10; signals.append(f"+{change_pct:.1f}% rise")
+    elif 0 < change_pct <= 0.3: score += 6; signals.append("Mild positive")
+    elif -1 < change_pct < 0: score += 7; signals.append(f"{change_pct:.1f}% dip - opportunity")
+    elif -3 < change_pct <= -1: score += 4; signals.append("Pullback")
     if vwap > 0:
         vs_vwap = ((price - vwap) / vwap) * 100
-        if 0 < vs_vwap < 1.5:
-            score += 8; signals.append("Above VWAP - bullish")
-        elif -1 < vs_vwap <= 0:
-            score += 6; signals.append("Near VWAP")
-        elif vs_vwap < -2:
-            score += 4; signals.append("Below VWAP - oversold")
-    
+        if 0 < vs_vwap < 1.5: score += 8; signals.append("Above VWAP")
+        elif -1 < vs_vwap <= 0: score += 6; signals.append("Near VWAP")
+        elif vs_vwap < -2: score += 4; signals.append("Below VWAP")
     if prev_close > 0:
         gap = ((open_p - prev_close) / prev_close) * 100
-        if 0 < gap < 1:
-            score += 5; signals.append("Gap up with room")
-    
+        if 0 < gap < 1: score += 5; signals.append("Gap up")
     return {'score': min(20, score), 'signals': signals[:4]}
 
 def calculate_smart_money_score(delivery_pct, buy_qty, sell_qty, volume):
-    score = 0
-    signals = []
-    
-    if delivery_pct > 65:
-        score += 12; signals.append(f"Strong delivery: {delivery_pct:.0f}%")
-    elif delivery_pct > 50:
-        score += 8; signals.append(f"Good delivery: {delivery_pct:.0f}%")
-    elif delivery_pct > 35:
-        score += 4
-    else:
-        signals.append(f"Low delivery: {delivery_pct:.0f}%")
-    
+    score = 0; signals = []
+    if delivery_pct > 65: score += 12; signals.append(f"Delivery: {delivery_pct:.0f}% Strong")
+    elif delivery_pct > 50: score += 8; signals.append(f"Delivery: {delivery_pct:.0f}% Good")
+    elif delivery_pct > 35: score += 4
+    else: signals.append(f"Delivery: {delivery_pct:.0f}% Low")
     if buy_qty > 0 and sell_qty > 0:
         ratio = buy_qty / sell_qty
-        if ratio > 1.5:
-            score += 8; signals.append(f"Buying pressure: {ratio:.1f}x")
-        elif ratio > 1.1:
-            score += 5
-        elif ratio < 0.7:
-            score += 2; signals.append("Selling pressure")
-    
-    if volume > 2000000:
-        score += 5; signals.append("High volume")
-    elif volume > 500000:
-        score += 3
-    
+        if ratio > 1.5: score += 8; signals.append(f"Buy pressure: {ratio:.1f}x")
+        elif ratio > 1.1: score += 5
+        elif ratio < 0.7: score += 2; signals.append("Sell pressure")
+    if volume > 2000000: score += 5; signals.append("High volume")
+    elif volume > 500000: score += 3
     return {'score': min(20, score), 'signals': signals[:3]}
 
 def calculate_risk_score(price, high_52, low_52, change_pct, delivery_pct):
-    score = 0
-    warnings = []
-    
+    score = 0; warnings = []
     if high_52 > 0 and low_52 > 0:
         volatility = ((high_52 - low_52) / low_52) * 100
         if volatility < 30: score += 8
         elif volatility < 50: score += 5
-        else: warnings.append(f"High volatility: {volatility:.0f}%")
-    
-    if abs(change_pct) > 5:
-        warnings.append(f"Extreme move: {change_pct:+.1f}%")
-        score -= 3
-    
-    if delivery_pct < 25:
-        warnings.append("Very low delivery")
-        score -= 5
-    
+        else: warnings.append(f"High vol: {volatility:.0f}%")
+    if abs(change_pct) > 5: warnings.append(f"Extreme: {change_pct:+.1f}%"); score -= 3
+    if delivery_pct < 25: warnings.append("Low delivery"); score -= 5
     return {'score': max(0, min(15, score + 5)), 'warnings': warnings[:3]}
 
 def calculate_sector_score(sector):
-    scores = {
-        'IT': 8, 'Banking': 7, 'Pharma': 8, 'Consumer': 7,
-        'Auto': 6, 'Finance': 7, 'Energy': 6, 'Infra': 7,
-        'Metals': 5, 'Others': 5
-    }
+    scores = {'IT':8,'Banking':7,'Pharma':8,'Consumer':7,'Auto':6,'Finance':7,'Energy':6,'Infra':7,'Metals':5,'Others':5}
     return scores.get(sector, 5)
 
 def calculate_win_probability(value, momentum, smart_money, risk, sector, delivery_pct, change_pct):
@@ -181,7 +121,7 @@ def run_ml_analysis():
     results = []
     now = datetime.now()
     
-    print(f"ML Predictor v2.1 - {now.strftime('%d-%b %I:%M %p')}")
+    print(f"ML Predictor v2.2 - {now.strftime('%d-%b %I:%M %p')}")
     
     all_symbols = [(sym, sec) for sec, syms in STOCKS.items() for sym in syms]
     
@@ -231,39 +171,39 @@ def run_ml_analysis():
                 (probability / 100) * 25
             , 1)
             
-            # Boost for better distribution
             total_score = total_score + 10
             total_score = min(95, max(15, total_score))
             
-            target_mult = 1.8 if total_score >= 55 else 1.5 if total_score >= 42 else 1.3
-            target = round(price * target_mult, 0)
             stop_loss = round(price * 0.95, 0)
             
-            # Recalibrated thresholds
+            # T1, T2 & Holding Period based on score
             if total_score >= 55:
-                prediction = "HIGH CONVICTION"
-                stars = "⭐⭐⭐⭐⭐"
-                position = "15-20%"
+                t1 = round(price * 1.20, 0); t2 = round(price * 1.40, 0)
+                hold = "2-4 weeks"; position = "15-20%"
+                prediction = "HIGH CONVICTION"; stars = "⭐⭐⭐⭐⭐"
             elif total_score >= 42:
-                prediction = "STRONG BUY"
-                stars = "⭐⭐⭐⭐"
-                position = "10-15%"
+                t1 = round(price * 1.12, 0); t2 = round(price * 1.22, 0)
+                hold = "1-3 weeks"; position = "10-15%"
+                prediction = "STRONG BUY"; stars = "⭐⭐⭐⭐"
             elif total_score >= 32:
-                prediction = "MODERATE BUY"
-                stars = "⭐⭐⭐"
-                position = "5-10%"
+                t1 = round(price * 1.07, 0); t2 = round(price * 1.14, 0)
+                hold = "1-2 weeks"; position = "5-10%"
+                prediction = "MODERATE BUY"; stars = "⭐⭐⭐"
             else:
-                prediction = "WATCH"
-                stars = "⭐⭐"
-                position = "0-5%"
+                t1 = round(price * 1.04, 0); t2 = round(price * 1.08, 0)
+                hold = "3-7 days"; position = "0-5%"
+                prediction = "WATCH"; stars = "⭐⭐"
+            
+            t1_gain = round(((t1 - price) / price) * 100, 1)
+            t2_gain = round(((t2 - price) / price) * 100, 1)
             
             results.append({
                 'symbol': symbol, 'sector': sector, 'price': price,
                 'score': total_score, 'stars': stars,
-                'prediction': prediction,
-                'probability': probability,
-                'target': target, 'stop_loss': stop_loss,
-                'position': position,
+                'prediction': prediction, 'probability': probability,
+                'stop_loss': stop_loss, 't1': t1, 't2': t2,
+                't1_gain': t1_gain, 't2_gain': t2_gain,
+                'hold': hold, 'position': position,
                 'change': change_pct,
                 'value_signals': value['signals'][:2],
                 'momentum_signals': momentum['signals'][:2],
@@ -273,7 +213,7 @@ def run_ml_analysis():
                 'value_zone': f"{value['position']:.0f}% of 52W"
             })
             
-            print(f"  {symbol:15} Score: {total_score:.1f} | Prob: {probability:.0f}% | {prediction}")
+            print(f"  {symbol:15} Score: {total_score:.1f} | T1:+{t1_gain}% | T2:+{t2_gain}% | {hold}")
             time.sleep(0.08)
             
         except:
@@ -286,58 +226,50 @@ def build_message(results, now):
     
     results.sort(key=lambda x: x['score'], reverse=True)
     
-    # Recalibrated thresholds
     top = [r for r in results if r['score'] >= 55]
     good = [r for r in results if 42 <= r['score'] < 55]
+    moderate = [r for r in results if 32 <= r['score'] < 42]
     
-    msg = f"<b>ML PREDICTION ENGINE v2.1</b>\n"
+    msg = f"<b>ML PREDICTION ENGINE v2.2</b>\n"
     msg += f"{now.strftime('%d-%b %I:%M %p')} IST\n"
     msg += f"{'═'*35}\n\n"
     
-    msg += f"<b>5-Layer Analysis:</b>\n"
-    msg += f"Value | Momentum | Smart Money\n"
-    msg += f"Risk | Sector Strength\n\n"
-    
     msg += f"<b>Results:</b>\n"
-    msg += f"High Conviction (55+): {len(top)}\n"
-    msg += f"Strong Buy (42-54): {len(good)}\n"
-    msg += f"Total Analyzed: {len(results)}\n\n"
+    msg += f"High Conviction: {len(top)}\n"
+    msg += f"Strong Buy: {len(good)}\n"
+    msg += f"Moderate: {len(moderate)}\n"
+    msg += f"Total: {len(results)} stocks\n\n"
     
-    if top:
-        msg += f"<b>HIGH CONVICTION PICKS</b>\n{'═'*35}\n\n"
+    # Show all three categories
+    all_shown = top[:4] + good[:2] + moderate[:1]
+    
+    if all_shown:
+        msg += f"<b>TOP PICKS</b>\n{'═'*35}\n\n"
         
-        for i, r in enumerate(top[:5], 1):
-            gain = ((r['target'] - r['price']) / r['price']) * 100
+        for i, r in enumerate(all_shown[:6], 1):
+            emoji = "🟢" if r['score'] >= 55 else "🔵" if r['score'] >= 42 else "🟡"
             
-            msg += f"<b>#{i} {r['symbol']}</b> | {r['sector']} | Rs.{r['price']:.0f}\n"
+            msg += f"{emoji} <b>#{i} {r['symbol']}</b> | {r['sector']} | Rs.{r['price']:.0f}\n"
             msg += f"{'─'*35}\n"
-            msg += f"Score: <b>{r['score']}/100</b> {r['stars']}\n"
-            msg += f"Win Probability: <b>{r['probability']:.0f}%</b>\n"
-            msg += f"Signal: {r['prediction']}\n\n"
+            msg += f"Score: <b>{r['score']}/100</b> {r['stars']} | {r['prediction']}\n"
+            msg += f"Win Probability: <b>{r['probability']:.0f}%</b>\n\n"
             
             msg += f"<b>Analysis:</b>\n"
-            msg += f"  Value: {', '.join(r['value_signals'])}\n"
-            msg += f"  Momentum: {', '.join(r['momentum_signals'])}\n"
-            msg += f"  Smart Money: {', '.join(r['smart_signals'])}\n"
+            if r['value_signals']: msg += f"  Value: {', '.join(r['value_signals'])}\n"
+            if r['momentum_signals']: msg += f"  Momentum: {', '.join(r['momentum_signals'])}\n"
+            if r['smart_signals']: msg += f"  Smart $: {', '.join(r['smart_signals'])}\n"
             msg += f"  Zone: {r['value_zone']}\n"
-            
-            if r['risk_warnings']:
-                msg += f"  Risk: {', '.join(r['risk_warnings'])}\n"
+            if r['risk_warnings']: msg += f"  Risk: {', '.join(r['risk_warnings'])}\n"
             
             msg += f"\n<b>Trade Plan:</b>\n"
-            msg += f"  Target: Rs.{r['target']:.0f} (+{gain:.0f}%)\n"
-            msg += f"  Stop: Rs.{r['stop_loss']:.0f} (-5%)\n"
-            msg += f"  Position: {r['position']}\n"
+            msg += f"  Entry: Rs.{r['price']:.0f}\n"
+            msg += f"  SL: Rs.{r['stop_loss']:.0f} (-5%)\n"
+            msg += f"  T1: Rs.{r['t1']:.0f} (+{r['t1_gain']}%) | T2: Rs.{r['t2']:.0f} (+{r['t2_gain']}%)\n"
+            msg += f"  Hold: {r['hold']} | Position: {r['position']}\n"
             msg += f"  Delivery: {r['delivery']:.0f}%\n\n"
     
-    if good and not top:
-        msg += f"<b>STRONG BUY PICKS</b>\n{'═'*35}\n\n"
-        for i, r in enumerate(good[:3], 1):
-            gain = ((r['target'] - r['price']) / r['price']) * 100
-            msg += f"<b>#{i} {r['symbol']}</b> | Rs.{r['price']:.0f} | Score: {r['score']}/100 | Target: Rs.{r['target']:.0f} (+{gain:.0f}%)\n\n"
-    
     msg += f"{'═'*35}\n"
-    msg += f"<i>ML Engine v2.1 | 5-Layer Analysis</i>"
+    msg += f"<i>ML Engine v2.2 | SL + T1 + T2 + Hold Period</i>"
     
     return msg
 
@@ -346,7 +278,9 @@ if __name__ == "__main__":
     if results:
         msg = build_message(results, now)
         if msg and send_ml_alert(msg):
-            print(f"Sent! {len(results)} stocks | Top: {len([r for r in results if r['score']>=55])} | Good: {len([r for r in results if 42<=r['score']<55])}")
+            top_count = len([r for r in results if r['score'] >= 55])
+            good_count = len([r for r in results if 42 <= r['score'] < 55])
+            print(f"Sent! {len(results)} stocks | Top:{top_count} | Good:{good_count}")
         else:
             print("Failed to send")
     else:
